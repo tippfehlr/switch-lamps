@@ -10,8 +10,13 @@
 // use epd_waveshare::{epd1in54::*, prelude::*};
 
 use arduino_hal::{hal::Atmega, usart::UsartOps, Usart};
-use core::cell;
+use core::{cell, time::Duration};
 use panic_halt as _;
+
+const BUTTON_HOLD_INTERVAL: Duration = Duration::from_millis(200);
+const MENU_TIMEOUT: Duration = Duration::from_secs(5);
+
+// --------- MILLIS ----------
 
 const PRESCALER: u32 = 64;
 const TIMER_COUNTS: u32 = 250;
@@ -50,12 +55,13 @@ fn TIMER0_COMPA() {
     })
 }
 
-fn millis() -> u32 {
-    avr_device::interrupt::free(|cs| MILLIS_COUNTER.borrow(cs).get())
+fn millis() -> Duration {
+    avr_device::interrupt::free(|cs| Duration::from_millis(MILLIS_COUNTER.borrow(cs).get().into()))
 }
 
 // ----------------
 
+#[derive(Clone, PartialEq, Eq)]
 enum MenuState {
     Main,
     /// wall lamps
@@ -80,6 +86,7 @@ enum MenuState {
     // …
 }
 
+#[derive(Clone, PartialEq, Eq)]
 enum Button {
     None,
 
@@ -126,7 +133,7 @@ fn main() -> ! {
     millis_init(dp.TC0);
 
     unsafe { avr_device::interrupt::enable() };
-    // replace pins with correct ones
+    //TODO: replace pins with correct ones
     let dir_buttons = pins.a0.into_analog_input(&mut adc);
     let poti_left_x = pins.a1.into_analog_input(&mut adc);
     let poti_left_y = pins.a2.into_analog_input(&mut adc);
@@ -134,14 +141,22 @@ fn main() -> ! {
     let poti_right_y = pins.a4.into_analog_input(&mut adc);
 
     let mut button: Button = Button::None;
+    let mut last_button: Button = Button::None;
+    let mut last_button_hold_time: Duration = Duration::ZERO;
+
     let mut menu_state: MenuState = MenuState::Main;
+    let mut menu_state_timeout: Duration = Duration::ZERO;
 
     loop {
-        arduino_hal::delay_ms(1000);
-        // ufmt::uwriteln!(&mut serial, "{}", millis()).unwrap();
+        button = Button::None;
+
+        if millis() - menu_state_timeout >= MENU_TIMEOUT {
+            menu_state = MenuState::Main;
+            todo!("update display");
+        }
 
         match dir_buttons.analog_read(&mut adc) {
-            // replace with values, these are switch positions
+            //TODO: replace with values, these are switch positions
             1 => button = Button::PressTop,
             2 => button = Button::PressLeft,
             3 => button = Button::PressRight,
@@ -156,7 +171,7 @@ fn main() -> ! {
             poti_right_x.analog_read(&mut adc),
             poti_right_y.analog_read(&mut adc),
         ) {
-            // replace with values, these are switch positions
+            //TODO: replace with values, these are switch positions
             // left up, right down (rotating to right)
             (7, 7, 7, 7) => button = Button::RotateRight,
 
@@ -178,10 +193,30 @@ fn main() -> ! {
             _ => {}
         };
 
-        match button {
-            Button::RotateRight => send_data(&mut serial, get_mask(&menu_state), 10, 0, 0),
-            Button::RotateLeft => send_data(&mut serial, get_mask(&menu_state), -10, 0, 0),
-            _ => todo!(),
+        if button != Button::None
+            && (button != last_button || millis() - last_button_hold_time >= BUTTON_HOLD_INTERVAL)
+        {
+            last_button = button.clone();
+            last_button_hold_time = millis();
+
+            match button {
+                Button::RotateRight => send_data(&mut serial, get_mask(&menu_state), 10, 0, 0),
+                Button::RotateLeft => send_data(&mut serial, get_mask(&menu_state), -10, 0, 0),
+                Button::SlideUp => send_data(&mut serial, get_mask(&menu_state), 0, 10, 0),
+                Button::SlideDown => send_data(&mut serial, get_mask(&menu_state), 0, -10, 0),
+                Button::SlideLeft => send_data(&mut serial, get_mask(&menu_state), 0, 0, -10),
+                Button::SlideRight => send_data(&mut serial, get_mask(&menu_state), 0, 0, 10),
+                Button::PressTop => match menu_state {
+                    MenuState::Lamp1 => send_data(&mut serial, get_mask(&menu_state), -127, 0, 0),
+                    _ => {
+                        menu_state = MenuState::Lamp1;
+                        menu_state_timeout = millis();
+
+                        todo!("update display");
+                    }
+                },
+                _ => todo!(),
+            }
         }
     }
 }
