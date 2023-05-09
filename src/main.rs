@@ -1,16 +1,28 @@
 #![no_std]
 #![no_main]
 #![feature(abi_avr_interrupt)]
+#![allow(unused_imports)]
 
-// use embedded_graphics::{
-//     pixelcolor::BinaryColor::On as Black,
-//     prelude::*,
-//     primitives::{Line, PrimitiveStyle},
-// };
-// use epd_waveshare::{epd1in54::*, prelude::*};
+use embedded_graphics::{
+    pixelcolor::BinaryColor::{self},
+    prelude::*,
+};
+use epd_waveshare::{
+    epd1in54::{Epd1in54, HEIGHT, WIDTH},
+    prelude::*,
+};
 
-use arduino_hal::{hal::Atmega, usart::UsartOps, Usart};
-use core::{cell, time::Duration};
+use arduino_hal::{
+    clock::MHz16,
+    hal::{delay::Delay, Atmega},
+    port::{
+        mode::{Input, Output, PullUp},
+        Pin,
+    },
+    usart::UsartOps,
+    Spi, Usart,
+};
+use core::{cell, marker::PhantomData, time::Duration};
 use panic_halt as _;
 
 const BUTTON_HOLD_INTERVAL: Duration = Duration::from_millis(200);
@@ -123,6 +135,69 @@ enum Button {
     RotateLeft,
 }
 
+struct DisplayBuffer<
+    E: WaveshareDisplay<
+        Spi,
+        Pin<Output>,
+        Pin<Input>,
+        Pin<Output>,
+        Pin<Output>,
+        Delay<MHz16>,
+        DisplayColor = Color,
+    >,
+> {
+    epd: E,
+}
+
+impl<
+        E: WaveshareDisplay<
+            Spi,
+            Pin<Output>,
+            Pin<Input>,
+            Pin<Output>,
+            Pin<Output>,
+            Delay<MHz16>,
+            DisplayColor = Color,
+        >,
+    > DisplayBuffer<E>
+{
+    fn new(
+        spi: &mut Spi,
+        cs: Pin<Output>,
+        busy: Pin<Input>,
+        dc: Pin<Output>,
+        rst: Pin<Output>,
+        delay: &mut Delay<MHz16>,
+    ) -> Self {
+        let epd = Epd1in54::new(spi, cs, busy, dc, rst, delay).unwrap();
+        Self { epd }
+    }
+}
+
+// impl<P1, P2, P3, P4, D> OriginDimensions for DisplayBuffer<P1, P2, P3, P4, D> {
+//     fn size(&self) -> Size {
+//         Size {
+//             width: WIDTH,
+//             height: HEIGHT,
+//         }
+//     }
+// }
+
+// impl<P1, P2, P3, P4, D> DrawTarget for DisplayBuffer<P1, P2, P3, P4, D> {
+//     type Color = BinaryColor;
+//     type Error = ();
+//     fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+//     where
+//         I: IntoIterator<Item = Pixel<Self::Color>>,
+//     {
+//         for pixel in pixels {}
+//         Ok(())
+//     }
+// }
+
+// #[link_section = ".rodata"]
+// static LAMP1: [u8; 200 * 200 / 8] = [];
+
 #[arduino_hal::entry]
 fn main() -> ! {
     let dp = arduino_hal::Peripherals::take().unwrap();
@@ -133,6 +208,7 @@ fn main() -> ! {
     millis_init(dp.TC0);
 
     unsafe { avr_device::interrupt::enable() };
+
     //TODO: replace pins with correct ones
     let dir_buttons = pins.a0.into_analog_input(&mut adc);
     let poti_left_x = pins.a1.into_analog_input(&mut adc);
@@ -140,7 +216,43 @@ fn main() -> ! {
     let poti_right_x = pins.a3.into_analog_input(&mut adc);
     let poti_right_y = pins.a4.into_analog_input(&mut adc);
 
-    let mut button: Button = Button::None;
+    let (mut spi, _) = arduino_hal::Spi::new(
+        dp.SPI,
+        pins.d13.into_output(),
+        pins.d11.into_output(),
+        pins.d12.into_pull_up_input(),
+        pins.d10.into_output(),
+        arduino_hal::spi::Settings::default(),
+    );
+    let cs_pin = pins.d5.into_output();
+    let busy_in = pins.d6.into_pull_up_input();
+    let dc = pins.d7.into_output();
+    let rst = pins.d8.into_output();
+
+    let mut epd = Epd1in54::new(
+        &mut spi,
+        cs_pin,
+        busy_in,
+        dc,
+        rst,
+        &mut arduino_hal::Delay::new(),
+    )
+    .unwrap();
+
+    let display = DisplayBuffer { epd };
+
+    // let style = PrimitiveStyleBuilder::new()
+    //     .stroke_color(Black)
+    //     .stroke_width(1)
+    //     .build();
+
+    // Line::new(Point::new(0, 120), Point::new(1, 295))
+    //     .into_styled(style)
+    //     .draw(&mut display);
+
+    // epd.update_partial_frame(&mut spi, &LAMP1, 0, 0, 20, 20);
+
+    let mut button: Button;
     let mut last_button: Button = Button::None;
     let mut last_button_hold_time: Duration = Duration::ZERO;
 
@@ -151,7 +263,7 @@ fn main() -> ! {
         button = Button::None;
 
         if millis() - menu_state_timeout >= MENU_TIMEOUT {
-            menu_state = MenuState::Main;
+            MenuState::Main;
             todo!("update display");
         }
 
@@ -206,18 +318,53 @@ fn main() -> ! {
                 Button::SlideDown => send_data(&mut serial, get_mask(&menu_state), 0, -10, 0),
                 Button::SlideLeft => send_data(&mut serial, get_mask(&menu_state), 0, 0, -10),
                 Button::SlideRight => send_data(&mut serial, get_mask(&menu_state), 0, 0, 10),
-                Button::PressTop => match menu_state {
+                Button::PressTop => match &menu_state {
                     MenuState::Lamp1 => send_data(&mut serial, get_mask(&menu_state), -127, 0, 0),
                     _ => {
-                        menu_state = MenuState::Lamp1;
+                        MenuState::Lamp1;
                         menu_state_timeout = millis();
 
                         todo!("update display");
                     }
                 },
-                _ => todo!(),
+                Button::PressBottom => match menu_state {
+                    MenuState::Lamp2 => send_data(&mut serial, get_mask(&menu_state), -127, 0, 0),
+                    _ => {
+                        MenuState::Lamp2;
+                        menu_state_timeout = millis();
+
+                        todo!("update display");
+                    }
+                },
+                Button::PressLeft => {
+                    increment_menu_state(menu_state);
+
+                    todo!("update display");
+                }
+                Button::PressRight => {
+                    decrement_menu_state(menu_state);
+
+                    todo!("update display");
+                }
+                Button::None => unreachable!(),
             }
         }
+    }
+}
+
+fn increment_menu_state(menu_state: &mut MenuState) {
+    match menu_state {
+        MenuState::Main => menu_state = MenuState::Lamp1,
+        MenuState::Lamp1 => menu_state = MenuState::Lamp2,
+        MenuState::Lamp2 => menu_state = MenuState::Main,
+    }
+}
+
+fn decrement_menu_state(menu_state: MenuState) -> MenuState {
+    match menu_state {
+        MenuState::Main => menu_state = MenuState::Lamp2,
+        MenuState::Lamp2 => menu_state = MenuState::Lamp1,
+        MenuState::Lamp1 => menu_state = MenuState::Main,
     }
 }
 
