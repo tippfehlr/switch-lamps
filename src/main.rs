@@ -1,28 +1,22 @@
 #![no_std]
 #![no_main]
 #![feature(abi_avr_interrupt)]
-#![allow(unused_imports)]
 
-use embedded_graphics::{
-    pixelcolor::BinaryColor::{self},
-    prelude::*,
-};
+use avr_device::atmega328p::SPI;
+use embedded_graphics::{pixelcolor::BinaryColor, prelude::*};
 use epd_waveshare::{
-    epd1in54::{Epd1in54, HEIGHT, WIDTH},
-    prelude::*,
+    epd1in54::Epd1in54,
 };
 
 use arduino_hal::{
-    clock::MHz16,
-    hal::{delay::Delay, Atmega},
-    port::{
-        mode::{Input, Output, PullUp},
-        Pin,
-    },
+    hal::Atmega,
+    port::
+        mode::{Input, Output}
+    ,
     usart::UsartOps,
-    Spi, Usart,
+    Delay, Usart,
 };
-use core::{cell, marker::PhantomData, time::Duration};
+use core::{cell, time::Duration};
 use panic_halt as _;
 
 const BUTTON_HOLD_INTERVAL: Duration = Duration::from_millis(200);
@@ -135,65 +129,33 @@ enum Button {
     RotateLeft,
 }
 
-// struct DisplayBuffer<
-//     E: WaveshareDisplay<
-//         Spi,
-//         Pin<Output>,
-//         Pin<Input>,
-//         Pin<Output>,
-//         Pin<Output>,
-//         Delay<MHz16>,
-//         DisplayColor = Color,
-//     >,
-// > {
-//     epd: E,
-// }
+enum DisplayError {}
 
-// impl<
-//         E: WaveshareDisplay<
-//             Spi,
-//             Pin<Output>,
-//             Pin<Input>,
-//             Pin<Output>,
-//             Pin<Output>,
-//             Delay<MHz16>,
-//             DisplayColor = Color,
-//         >,
-//     > DisplayBuffer<E>
-// {
-//     fn new(
-//         spi: &mut Spi,
-//         cs: Pin<Output>,
-//         busy: Pin<Input>,
-//         dc: Pin<Output>,
-//         rst: Pin<Output>,
-//         delay: &mut Delay<MHz16>,
-//     ) -> Self {
-//         let epd = Epd1in54::new(spi, cs, busy, dc, rst, delay).unwrap();
-//         Self { epd }
-//     }
-// }
+struct Display {
+    epd: Epd1in54<SPI, Output, Input, Output, Output, Delay>,
+}
 
-// impl<P1, P2, P3, P4, D> OriginDimensions for DisplayBuffer<P1, P2, P3, P4, D> {
-//     fn size(&self) -> Size {
-//         Size {
-//             width: WIDTH,
-//             height: HEIGHT,
-//         }
-//     }
-// }
+impl OriginDimensions for Display {
+    fn size(&self) -> Size {
+        Size {
+            width: 200,
+            height: 200,
+        }
+    }
+}
 
-// impl<P1, P2, P3, P4, D> DrawTarget for DisplayBuffer<P1, P2, P3, P4, D> {
-//     type Color = BinaryColor;
-//     type Error = ();
-//     fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
-//     where
-//         I: IntoIterator<Item = Pixel<Self::Color>>,
-//     {
-//         for pixel in pixels {}
-//         Ok(())
-//     }
-// }
+impl DrawTarget for Display {
+    type Color = BinaryColor;
+    type Error = DisplayError;
+    fn draw_iter<I>(&mut self, draw: I) -> Result<(), DisplayError>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
+    {
+        self.epd.
+        for pixel in draw {}
+        Ok(())
+    }
+}
 
 // #[link_section = ".rodata"]
 // static LAMP1: [u8; 200 * 200 / 8] = [];
@@ -216,28 +178,30 @@ fn main() -> ! {
     let poti_right_x = pins.a3.into_analog_input(&mut adc);
     let poti_right_y = pins.a4.into_analog_input(&mut adc);
 
-    // let (mut spi, _) = arduino_hal::Spi::new(
-    //     dp.SPI,
-    //     pins.d13.into_output(),
-    //     pins.d11.into_output(),
-    //     pins.d12.into_pull_up_input(),
-    //     pins.d10.into_output(),
-    //     arduino_hal::spi::Settings::default(),
-    // );
-    // let cs_pin = pins.d5.into_output();
-    // let busy_in = pins.d6.into_pull_up_input();
-    // let dc = pins.d7.into_output();
-    // let rst = pins.d8.into_output();
+    let (mut spi, _) = arduino_hal::Spi::new(
+        dp.SPI,
+        pins.d13.into_output(),
+        pins.d11.into_output(),
+        pins.d12.into_pull_up_input(),
+        pins.d10.into_output(),
+        arduino_hal::spi::Settings::default(),
+    );
+    let cs_pin = pins.d5.into_output();
+    let busy_in = pins.d6.into_pull_up_input();
+    let dc = pins.d7.into_output();
+    let rst = pins.d8.into_output();
 
-    // let mut epd = Epd1in54::new(
-    //     &mut spi,
-    //     cs_pin,
-    //     busy_in,
-    //     dc,
-    //     rst,
-    //     &mut arduino_hal::Delay::new(),
-    // )
-    // .unwrap();
+    let mut epd = Epd1in54::new(
+        &mut spi,
+        cs_pin,
+        busy_in,
+        dc,
+        rst,
+        &mut arduino_hal::Delay::new(),
+    )
+    .unwrap();
+
+    let mut display = MockDisplay
 
     // let display = DisplayBuffer { epd };
 
@@ -353,7 +317,10 @@ fn main() -> ! {
 }
 
 fn update_display(menu_state: &MenuState) {
-    todo!();
+    match menu_state {
+        MenuState::Main => {}
+        _ => {}
+    }
 }
 
 fn increment_menu_state(menu_state: &mut MenuState) {
