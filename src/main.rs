@@ -2,17 +2,15 @@
 #![no_main]
 #![feature(abi_avr_interrupt)]
 
-use avr_device::atmega328p::SPI;
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::*};
-use epd_waveshare::{
-    epd1in54::Epd1in54,
-};
+use epd_waveshare::{epd1in54::Epd1in54, prelude::*};
 
 use arduino_hal::{
-    hal::Atmega,
-    port::
-        mode::{Input, Output}
-    ,
+    hal::{Atmega, Spi},
+    port::{
+        mode::{Input, Output, PullUp},
+        Pin,
+    },
     usart::UsartOps,
     Delay, Usart,
 };
@@ -129,13 +127,15 @@ enum Button {
     RotateLeft,
 }
 
+type Display = Epd1in54<Spi, Pin<Output>, Pin<Input<PullUp>>, Pin<Output>, Pin<Output>, Delay>;
 enum DisplayError {}
 
-struct Display {
-    epd: Epd1in54<SPI, Output, Input, Output, Output, Delay>,
+struct DisplayTarget {
+    epd: Display,
+    spi: Spi,
 }
 
-impl OriginDimensions for Display {
+impl OriginDimensions for DisplayTarget {
     fn size(&self) -> Size {
         Size {
             width: 200,
@@ -144,15 +144,25 @@ impl OriginDimensions for Display {
     }
 }
 
-impl DrawTarget for Display {
+impl DrawTarget for DisplayTarget {
     type Color = BinaryColor;
     type Error = DisplayError;
     fn draw_iter<I>(&mut self, draw: I) -> Result<(), DisplayError>
     where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
-        self.epd.
-        for pixel in draw {}
+        for pixel in draw {
+            self.epd
+                .update_partial_frame(
+                    &mut self.spi,
+                    &[pixel.1.is_on() as u8 * 255],
+                    pixel.0.x.try_into().unwrap(),
+                    pixel.0.y.try_into().unwrap(),
+                    1,
+                    1,
+                )
+                .unwrap();
+        }
         Ok(())
     }
 }
@@ -186,10 +196,10 @@ fn main() -> ! {
         pins.d10.into_output(),
         arduino_hal::spi::Settings::default(),
     );
-    let cs_pin = pins.d5.into_output();
-    let busy_in = pins.d6.into_pull_up_input();
-    let dc = pins.d7.into_output();
-    let rst = pins.d8.into_output();
+    let cs_pin = pins.d5.into_output().downgrade();
+    let busy_in = pins.d6.into_pull_up_input().downgrade();
+    let dc = pins.d7.into_output().downgrade();
+    let rst = pins.d8.into_output().downgrade();
 
     let mut epd = Epd1in54::new(
         &mut spi,
@@ -201,9 +211,7 @@ fn main() -> ! {
     )
     .unwrap();
 
-    let mut display = MockDisplay
-
-    // let display = DisplayBuffer { epd };
+    let display = DisplayTarget { epd, spi };
 
     // let style = PrimitiveStyleBuilder::new()
     //     .stroke_color(Black)
