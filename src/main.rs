@@ -2,17 +2,22 @@
 #![no_main]
 #![feature(abi_avr_interrupt)]
 
-use embedded_graphics::{pixelcolor::BinaryColor, prelude::*};
+use embedded_graphics::{
+    pixelcolor::BinaryColor,
+    prelude::*,
+    primitives::{Line, PrimitiveStyleBuilder},
+};
 use epd_waveshare::{epd1in54::Epd1in54, prelude::*};
 
 use arduino_hal::{
-    hal::{Atmega, Spi},
+    clock::MHz16,
+    hal::{delay::Delay, Atmega, Spi},
     port::{
         mode::{Input, Output, PullUp},
         Pin,
     },
     usart::UsartOps,
-    Delay, Usart,
+    Usart,
 };
 use core::{cell, time::Duration};
 use panic_halt as _;
@@ -127,12 +132,26 @@ enum Button {
     RotateLeft,
 }
 
-type Display = Epd1in54<Spi, Pin<Output>, Pin<Input<PullUp>>, Pin<Output>, Pin<Output>, Delay>;
+type Display =
+    Epd1in54<Spi, Pin<Output>, Pin<Input<PullUp>>, Pin<Output>, Pin<Output>, Delay<MHz16>>;
 enum DisplayError {}
 
 struct DisplayTarget {
     epd: Display,
     spi: Spi,
+    delay: Delay<MHz16>,
+}
+
+impl DisplayTarget {
+    fn new(epd: Display, spi: Spi) -> Self {
+        let delay = Delay::<arduino_hal::clock::MHz16>::new();
+        Self { epd, spi, delay }
+    }
+    fn display_frame(&mut self) {
+        self.epd
+            .display_frame(&mut self.spi, &mut self.delay)
+            .unwrap();
+    }
 }
 
 impl OriginDimensions for DisplayTarget {
@@ -142,6 +161,10 @@ impl OriginDimensions for DisplayTarget {
             height: 200,
         }
     }
+}
+
+fn to_color(color: BinaryColor) -> u8 {
+    color.is_on() as u8 * 255
 }
 
 impl DrawTarget for DisplayTarget {
@@ -155,7 +178,7 @@ impl DrawTarget for DisplayTarget {
             self.epd
                 .update_partial_frame(
                     &mut self.spi,
-                    &[pixel.1.is_on() as u8 * 255],
+                    &[to_color(pixel.1)],
                     pixel.0.x.try_into().unwrap(),
                     pixel.0.y.try_into().unwrap(),
                     1,
@@ -163,6 +186,14 @@ impl DrawTarget for DisplayTarget {
                 )
                 .unwrap();
         }
+        Ok(())
+    }
+
+    fn clear(&mut self, color: Self::Color) -> Result<(), Self::Error> {
+        self.epd.set_background_color(to_color(color).into());
+        self.epd
+            .clear_frame(&mut self.spi, &mut self.delay)
+            .unwrap();
         Ok(())
     }
 }
@@ -201,7 +232,7 @@ fn main() -> ! {
     let dc = pins.d7.into_output().downgrade();
     let rst = pins.d8.into_output().downgrade();
 
-    let mut epd = Epd1in54::new(
+    let epd = Epd1in54::new(
         &mut spi,
         cs_pin,
         busy_in,
@@ -211,18 +242,21 @@ fn main() -> ! {
     )
     .unwrap();
 
-    let display = DisplayTarget { epd, spi };
+    let mut display = DisplayTarget::new(epd, spi);
 
-    // let style = PrimitiveStyleBuilder::new()
-    //     .stroke_color(Black)
-    //     .stroke_width(1)
-    //     .build();
+    let style = PrimitiveStyleBuilder::new()
+        .stroke_color(BinaryColor::Off)
+        .stroke_width(1)
+        .build();
 
-    // Line::new(Point::new(0, 120), Point::new(1, 295))
-    //     .into_styled(style)
-    //     .draw(&mut display);
+    // EXAMPLE -----------------------------------------
 
-    // epd.update_partial_frame(&mut spi, &LAMP1, 0, 0, 20, 20);
+    _ = Line::new(Point::new(0, 120), Point::new(1, 295))
+        .into_styled(style)
+        .draw(&mut display);
+    display.display_frame();
+
+    // -------------------------------------------------
 
     let mut button: Button;
     let mut last_button: Button = Button::None;
