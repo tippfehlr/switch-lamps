@@ -3,9 +3,10 @@
 #![feature(abi_avr_interrupt)]
 
 use embedded_graphics::{
+    mono_font::{iso_8859_9::FONT_9X15_BOLD, MonoTextStyle},
     pixelcolor::BinaryColor,
     prelude::*,
-    primitives::{Line, PrimitiveStyleBuilder},
+    text::{Alignment, Baseline, Text, TextStyleBuilder},
 };
 use epd_waveshare::{epd1in54::Epd1in54, prelude::*};
 
@@ -132,18 +133,17 @@ enum Button {
     RotateLeft,
 }
 
-type Display =
-    Epd1in54<Spi, Pin<Output>, Pin<Input<PullUp>>, Pin<Output>, Pin<Output>, Delay<MHz16>>;
+type Epd = Epd1in54<Spi, Pin<Output>, Pin<Input<PullUp>>, Pin<Output>, Pin<Output>, Delay<MHz16>>;
 enum DisplayError {}
 
-struct DisplayTarget {
-    epd: Display,
+struct Display {
+    epd: Epd,
     spi: Spi,
     delay: Delay<MHz16>,
 }
 
-impl DisplayTarget {
-    fn new(epd: Display, spi: Spi) -> Self {
+impl Display {
+    fn new(epd: Epd, spi: Spi) -> Self {
         let delay = Delay::<arduino_hal::clock::MHz16>::new();
         Self { epd, spi, delay }
     }
@@ -154,7 +154,7 @@ impl DisplayTarget {
     }
 }
 
-impl OriginDimensions for DisplayTarget {
+impl OriginDimensions for Display {
     fn size(&self) -> Size {
         Size {
             width: 200,
@@ -167,7 +167,7 @@ fn to_color(color: BinaryColor) -> u8 {
     color.is_on() as u8 * 255
 }
 
-impl DrawTarget for DisplayTarget {
+impl DrawTarget for Display {
     type Color = BinaryColor;
     type Error = DisplayError;
     fn draw_iter<I>(&mut self, draw: I) -> Result<(), DisplayError>
@@ -242,21 +242,7 @@ fn main() -> ! {
     )
     .unwrap();
 
-    let mut display = DisplayTarget::new(epd, spi);
-
-    let style = PrimitiveStyleBuilder::new()
-        .stroke_color(BinaryColor::Off)
-        .stroke_width(1)
-        .build();
-
-    // EXAMPLE -----------------------------------------
-
-    _ = Line::new(Point::new(0, 120), Point::new(1, 295))
-        .into_styled(style)
-        .draw(&mut display);
-    display.display_frame();
-
-    // -------------------------------------------------
+    let mut display: Display = Display::new(epd, spi);
 
     let mut button: Button;
     let mut last_button: Button = Button::None;
@@ -270,7 +256,7 @@ fn main() -> ! {
 
         if millis() - menu_state_timeout >= MENU_TIMEOUT {
             menu_state = MenuState::Main;
-            update_display(&menu_state);
+            update_display(&menu_state, &mut display);
         }
 
         match dir_buttons.analog_read(&mut adc) {
@@ -330,7 +316,7 @@ fn main() -> ! {
                         menu_state = MenuState::Lamp1;
                         menu_state_timeout = millis();
 
-                        update_display(&menu_state);
+                        update_display(&menu_state, &mut display);
                     }
                 },
                 Button::PressBottom => match menu_state {
@@ -339,18 +325,18 @@ fn main() -> ! {
                         menu_state = MenuState::Lamp2;
                         menu_state_timeout = millis();
 
-                        update_display(&menu_state);
+                        update_display(&menu_state, &mut display);
                     }
                 },
                 Button::PressLeft => {
                     increment_menu_state(&mut menu_state);
 
-                    update_display(&menu_state);
+                    update_display(&menu_state, &mut display);
                 }
                 Button::PressRight => {
                     decrement_menu_state(&mut menu_state);
 
-                    update_display(&menu_state);
+                    update_display(&menu_state, &mut display);
                 }
                 Button::None => unreachable!(),
             }
@@ -358,10 +344,29 @@ fn main() -> ! {
     }
 }
 
-fn update_display(menu_state: &MenuState) {
+fn update_display(menu_state: &MenuState, display: &mut Display) {
+    let display_middle = Point {
+        x: display.epd.width() as i32 / 2,
+        y: display.epd.height() as i32 / 2,
+    };
+    let character_style = MonoTextStyle::new(&FONT_9X15_BOLD, BinaryColor::On);
+    let text_style = TextStyleBuilder::new()
+        .alignment(Alignment::Center)
+        .baseline(Baseline::Middle)
+        .build();
     match menu_state {
-        MenuState::Main => {}
-        _ => {}
+        MenuState::Main => {
+            Text::with_text_style("ALL", display_middle, character_style, text_style);
+            display.display_frame();
+        }
+        MenuState::Lamp1 => {
+            Text::with_text_style("1", display_middle, character_style, text_style);
+            display.display_frame();
+        }
+        MenuState::Lamp2 => {
+            Text::with_text_style("2", display_middle, character_style, text_style);
+            display.display_frame();
+        }
     }
 }
 
