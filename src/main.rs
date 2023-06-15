@@ -22,6 +22,7 @@ use arduino_hal::{
 };
 use core::{cell, time::Duration};
 use panic_halt as _;
+use ufmt::{derive::uDebug, uDisplay, uwriteln};
 
 const BUTTON_HOLD_INTERVAL: Duration = Duration::from_millis(200);
 const MENU_TIMEOUT: Duration = Duration::from_secs(5);
@@ -96,7 +97,7 @@ enum MenuState {
     // …
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, uDebug)]
 enum Button {
     None,
 
@@ -296,51 +297,17 @@ fn main() -> ! {
 
             _ => {}
         };
-
-        if button != Button::None
-            && (button != last_button || millis() - last_button_hold_time >= BUTTON_HOLD_INTERVAL)
-        {
-            last_button = button.clone();
-            last_button_hold_time = millis();
-
-            match button {
-                Button::RotateRight => send_data(&mut serial, get_mask(&menu_state), 10, 0, 0),
-                Button::RotateLeft => send_data(&mut serial, get_mask(&menu_state), -10, 0, 0),
-                Button::SlideUp => send_data(&mut serial, get_mask(&menu_state), 0, 10, 0),
-                Button::SlideDown => send_data(&mut serial, get_mask(&menu_state), 0, -10, 0),
-                Button::SlideLeft => send_data(&mut serial, get_mask(&menu_state), 0, 0, -10),
-                Button::SlideRight => send_data(&mut serial, get_mask(&menu_state), 0, 0, 10),
-                Button::PressTop => match &menu_state {
-                    MenuState::Lamp1 => send_data(&mut serial, get_mask(&menu_state), -127, 0, 0),
-                    _ => {
-                        menu_state = MenuState::Lamp1;
-                        menu_state_timeout = millis();
-
-                        update_display(&menu_state, &mut display);
-                    }
-                },
-                Button::PressBottom => match menu_state {
-                    MenuState::Lamp2 => send_data(&mut serial, get_mask(&menu_state), -127, 0, 0),
-                    _ => {
-                        menu_state = MenuState::Lamp2;
-                        menu_state_timeout = millis();
-
-                        update_display(&menu_state, &mut display);
-                    }
-                },
-                Button::PressLeft => {
-                    increment_menu_state(&mut menu_state);
-
-                    update_display(&menu_state, &mut display);
-                }
-                Button::PressRight => {
-                    decrement_menu_state(&mut menu_state);
-
-                    update_display(&menu_state, &mut display);
-                }
-                Button::None => unreachable!(),
-            }
-        }
+        uwriteln!(
+            &mut serial,
+            "dir_buttons: {:?}, poti_left_x: {:?}, poti_left_y: {:?}, poti_right_x: {:?}, poti_right_y: {:?}, button: {:?}",
+            dir_buttons.analog_read(&mut adc),
+            poti_left_x.analog_read(&mut adc),
+            poti_left_y.analog_read(&mut adc),
+            poti_right_x.analog_read(&mut adc),
+            poti_right_y.analog_read(&mut adc),
+            button
+        )
+        .unwrap();
     }
 }
 
