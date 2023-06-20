@@ -12,7 +12,6 @@ bench = false
 
 [dependencies]
 ufmt = "0.1.0"
-crc = "3.0.1"
 panic-halt = "0.2.0"
 embedded-graphics = "0.7.1"
 epd-waveshare = { version = "0.5.0", default-features = false}
