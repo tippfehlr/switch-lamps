@@ -11,7 +11,9 @@ use embedded_graphics::{
 use epd_waveshare::{epd1in54::Epd1in54, prelude::*};
 
 use arduino_hal::{
+    adc,
     clock::MHz16,
+    delay_ms,
     hal::{delay::Delay, Atmega, Spi},
     port::{
         mode::{Input, Output, PullUp},
@@ -22,7 +24,7 @@ use arduino_hal::{
 };
 use core::{cell, time::Duration};
 use panic_halt as _;
-use ufmt::{derive::uDebug, uDisplay, uwriteln};
+use ufmt::{derive::uDebug, uDisplay, uWrite, uwriteln};
 
 const BUTTON_HOLD_INTERVAL: Duration = Duration::from_millis(200);
 const MENU_TIMEOUT: Duration = Duration::from_secs(5);
@@ -206,66 +208,67 @@ impl DrawTarget for Display {
 fn main() -> ! {
     let dp = arduino_hal::Peripherals::take().unwrap();
     let pins = arduino_hal::pins!(dp);
-    let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
+    let mut serial = arduino_hal::default_serial!(dp, pins, 115200);
     let mut adc = arduino_hal::Adc::new(dp.ADC, Default::default());
+    serial.write_str("1").unwrap();
 
     millis_init(dp.TC0);
 
     unsafe { avr_device::interrupt::enable() };
 
+    let _poti_power = pins.d12.into_output_high();
+
     //TODO: replace pins with correct ones
-    let dir_buttons = pins.a0.into_analog_input(&mut adc);
-    let poti_left_x = pins.a1.into_analog_input(&mut adc);
+    let dir_buttons = pins.a1.into_analog_input(&mut adc);
+    let poti_left_x = pins.a0.into_analog_input(&mut adc);
     let poti_left_y = pins.a2.into_analog_input(&mut adc);
     let poti_right_x = pins.a3.into_analog_input(&mut adc);
-    let poti_right_y = pins.a4.into_analog_input(&mut adc);
 
-    let (mut spi, _) = arduino_hal::Spi::new(
-        dp.SPI,
-        pins.d13.into_output(),
-        pins.d11.into_output(),
-        pins.d12.into_pull_up_input(),
-        pins.d10.into_output(),
-        arduino_hal::spi::Settings::default(),
-    );
-    let cs_pin = pins.d5.into_output().downgrade();
-    let busy_in = pins.d6.into_pull_up_input().downgrade();
-    let dc = pins.d7.into_output().downgrade();
-    let rst = pins.d8.into_output().downgrade();
+    // let (mut spi, _) = arduino_hal::Spi::new(
+    //     dp.SPI,
+    //     pins.d13.into_output(),
+    //     pins.d11.into_output(),
+    //     pins.d12.into_pull_up_input(),
+    //     pins.d10.into_output(),
+    //     arduino_hal::spi::Settings::default(),
+    // );
+    // let cs_pin = pins.d5.into_output().downgrade();
+    // let busy_in = pins.d6.into_pull_up_input().downgrade();
+    // let dc = pins.d7.into_output().downgrade();
+    // let rst = pins.d8.into_output().downgrade();
 
-    let epd = Epd1in54::new(
-        &mut spi,
-        cs_pin,
-        busy_in,
-        dc,
-        rst,
-        &mut arduino_hal::Delay::new(),
-    )
-    .unwrap();
+    // let epd = Epd1in54::new(
+    //     &mut spi,
+    //     cs_pin,
+    //     busy_in,
+    //     dc,
+    //     rst,
+    //     &mut arduino_hal::Delay::new(),
+    // )
+    // .unwrap();
 
-    let mut display: Display = Display::new(epd, spi);
+    // let mut display: Display = Display::new(epd, spi);
 
     let mut button: Button;
-    let mut last_button: Button = Button::None;
-    let mut last_button_hold_time: Duration = Duration::ZERO;
+    // let mut last_button: Button = Button::None;
+    // let mut last_button_hold_time: Duration = Duration::ZERO;
 
-    let mut menu_state: MenuState = MenuState::Main;
-    let mut menu_state_timeout: Duration = Duration::ZERO;
+    // let mut menu_state: MenuState = MenuState::Main;
+    // let mut menu_state_timeout: Duration = Duration::ZERO;
 
     loop {
         button = Button::None;
 
-        if millis() - menu_state_timeout >= MENU_TIMEOUT {
-            menu_state = MenuState::Main;
-            update_display(&menu_state, &mut display);
-        }
+        // if millis() - menu_state_timeout >= MENU_TIMEOUT {
+        //     menu_state = MenuState::Main;
+        //     update_display(&menu_state, &mut display);
+        // }
 
         match dir_buttons.analog_read(&mut adc) {
-            //TODO: replace with values, these are switch positions
-            1 => button = Button::PressTop,
-            2 => button = Button::PressLeft,
-            3 => button = Button::PressRight,
-            4 => button = Button::PressBottom,
+            500...520 => button = Button::PressTop,
+            370...390 => button = Button::PressLeft,
+            180...200 => button = Button::PressRight,
+            330...340 => button = Button::PressBottom,
             _ => {}
         }
 
@@ -274,40 +277,42 @@ fn main() -> ! {
             poti_left_x.analog_read(&mut adc),
             poti_left_y.analog_read(&mut adc),
             poti_right_x.analog_read(&mut adc),
-            poti_right_y.analog_read(&mut adc),
+            adc.read_blocking(&adc::channel::ADC7),
         ) {
             //TODO: replace with values, these are switch positions
             // left up, right down (rotating to right)
-            (7, 7, 7, 7) => button = Button::RotateRight,
+            (0.., 0...200, 0.., 900..) => button = Button::RotateRight,
 
             // left down, right up (rotating to left)
-            (4, 1, 1, 1) => button = Button::RotateLeft,
+            (0.., 900.., 0.., 0...200) => button = Button::RotateLeft,
 
             // both up
-            (1...2, 1...2, 1...2, 1...2) => button = Button::SlideUp,
+            (0.., 800.., 0.., 800..) => button = Button::SlideUp,
 
             // both down
-            (3, 3, 2, 2) => button = Button::SlideDown,
+            (0.., 0...200, 0.., 0...200) => button = Button::SlideDown,
 
             // both left
-            (5, 5, 2, 2) => button = Button::SlideLeft,
+            (900.., 0.., 0...200, 0..) => button = Button::SlideLeft,
 
             // both right
-            (6, 6, 2, 2) => button = Button::SlideRight,
+            (0...200, 0.., 900.., 0..) => button = Button::SlideRight,
 
             _ => {}
         };
         uwriteln!(
             &mut serial,
-            "dir_buttons: {:?}, poti_left_x: {:?}, poti_left_y: {:?}, poti_right_x: {:?}, poti_right_y: {:?}, button: {:?}",
+            "dir_buttons: {:?}, \tpoti_left_x: {:?}, \tpoti_left_y: {:?}, \tpoti_right_x: {:?}, \tpoti_right_y: {:?}, \thand: {:?}, \tbutton: {:?}",
             dir_buttons.analog_read(&mut adc),
             poti_left_x.analog_read(&mut adc),
             poti_left_y.analog_read(&mut adc),
             poti_right_x.analog_read(&mut adc),
-            poti_right_y.analog_read(&mut adc),
+            adc.read_blocking(&adc::channel::ADC7),
+            adc.read_blocking(&adc::channel::ADC6),
             button
         )
         .unwrap();
+        delay_ms(100);
     }
 }
 
