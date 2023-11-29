@@ -279,25 +279,12 @@ fn main() -> ! {
             poti_right_x.analog_read(&mut adc),
             adc.read_blocking(&adc::channel::ADC7),
         ) {
-            //TODO: replace with values, these are switch positions
-            // left up, right down (rotating to right)
             (0.., 0...200, 0.., 900..) => button = Button::RotateRight,
-
-            // left down, right up (rotating to left)
             (0.., 900.., 0.., 0...200) => button = Button::RotateLeft,
-
-            // both up
             (0.., 800.., 0.., 800..) => button = Button::SlideUp,
-
-            // both down
             (0.., 0...200, 0.., 0...200) => button = Button::SlideDown,
-
-            // both left
             (900.., 0.., 0...200, 0..) => button = Button::SlideLeft,
-
-            // both right
             (0...200, 0.., 900.., 0..) => button = Button::SlideRight,
-
             _ => {}
         };
         uwriteln!(
