@@ -263,10 +263,10 @@ fn main() -> ! {
         // }
 
         match dir_buttons.analog_read(&mut adc) {
-            500...520 => button = Button::PressTop,
-            370...390 => button = Button::PressLeft,
-            180...200 => button = Button::PressRight,
-            330...340 => button = Button::PressBottom,
+            500...520 => button = Button::PressBottom,
+            370...390 => button = Button::PressRight,
+            180...200 => button = Button::PressLeft,
+            330...340 => button = Button::PressTop,
             _ => {}
         }
 
@@ -279,10 +279,10 @@ fn main() -> ! {
         ) {
             (0.., 0...200, 0.., 900..) => button = Button::RotateRight,
             (0.., 900.., 0.., 0...200) => button = Button::RotateLeft,
-            (0.., 800.., 0.., 800..) => button = Button::SlideUp,
-            (0.., 0...200, 0.., 0...200) => button = Button::SlideDown,
-            (900.., 0.., 0...200, 0..) => button = Button::SlideLeft,
-            (0...200, 0.., 900.., 0..) => button = Button::SlideRight,
+            (0.., 800.., 0.., 800..) => button = Button::SlideDown,
+            (0.., 0...200, 0.., 0...200) => button = Button::SlideUp,
+            (900.., 0.., 0...200, 0..) => button = Button::SlideRight,
+            (0...200, 0.., 900.., 0..) => button = Button::SlideLeft,
             _ => {}
         };
         uwriteln!(
