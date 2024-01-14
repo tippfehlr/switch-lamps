@@ -5,21 +5,19 @@ version = 3
 [[package]]
 name = "arduino-hal"
 version = "0.1.0"
-source = "git+https://github.com/rahix/avr-hal?rev=4c9c44c314eb061ee20556ef10d45dea36e75ee4#4c9c44c314eb061ee20556ef10d45dea36e75ee4"
 dependencies = [
  "atmega-hal",
  "avr-device",
  "avr-hal-generic",
  "cfg-if 1.0.0",
- "embedded-hal",
+ "embedded-hal 0.2.7",
+ "embedded-hal 1.0.0",
  "ufmt",
- "void",
 ]
 
 [[package]]
 name = "atmega-hal"
 version = "0.1.0"
-source = "git+https://github.com/rahix/avr-hal?rev=4c9c44c314eb061ee20556ef10d45dea36e75ee4#4c9c44c314eb061ee20556ef10d45dea36e75ee4"
 dependencies = [
  "avr-device",
  "avr-hal-generic",
@@ -57,17 +55,17 @@ dependencies = [
 [[package]]
 name = "avr-hal-generic"
 version = "0.1.0"
-source = "git+https://github.com/rahix/avr-hal?rev=4c9c44c314eb061ee20556ef10d45dea36e75ee4#4c9c44c314eb061ee20556ef10d45dea36e75ee4"
 dependencies = [
  "avr-device",
  "cfg-if 0.1.10",
- "embedded-hal",
+ "embedded-hal 0.2.7",
+ "embedded-hal 1.0.0",
  "embedded-storage",
- "nb 0.1.3",
+ "nb 1.1.0",
  "paste",
  "rustversion",
  "ufmt",
- "void",
+ "unwrap-infallible",
 ]
 
 [[package]]
@@ -108,9 +106,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "embedded-graphics"
-version = "0.7.1"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "750082c65094fbcc4baf9ba31583ce9a8bb7f52cadfb96f6164b1bc7f922f32b"
+checksum = "0649998afacf6d575d126d83e68b78c0ab0e00ca2ac7e9b3db11b4cbe8274ef0"
 dependencies = [
  "az",
  "byteorder",
@@ -121,9 +119,9 @@ dependencies = [
 
 [[package]]
 name = "embedded-graphics-core"
-version = "0.3.3"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8b1239db5f3eeb7e33e35bd10bd014e7b2537b17e071f726a09351431337cfa"
+checksum = "ba9ecd261f991856250d2207f6d8376946cd9f412a2165d3b75bc87a0bc7a044"
 dependencies = [
  "az",
  "byteorder",
@@ -140,6 +138,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedded-hal"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "361a90feb7004eca4019fb28352a9465666b24f840f5c3cddf0ff13920590b89"
+
+[[package]]
 name = "embedded-storage"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -152,23 +156,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5502a0ed11effff2f47b69b83cf8d4325de86362b5ca37925fa1bf240522bbc"
 dependencies = [
  "bit_field",
- "embedded-hal",
+ "embedded-hal 0.2.7",
 ]
 
 [[package]]
 name = "float-cmp"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1267f4ac4f343772758f7b1bdcbe767c218bbab93bb432acbf5162bbf85a6c4"
+checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 dependencies = [
  "num-traits",
 ]
 
 [[package]]
 name = "micromath"
-version = "1.1.1"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc4010833aea396656c2f91ee704d51a6f1329ec2ab56ffd00bfd56f7481ea94"
+checksum = "c3c8dda44ff03a2f238717214da50f65d5a53b45cd213a7370424ffdb6fae815"
 
 [[package]]
 name = "nb"
@@ -207,25 +211,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
-name = "proc-macro-hack"
-version = "0.5.20+deprecated"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc375e1527247fe1a97d8b7156678dfe7c1af2fc075c9a4db3690ecd2a148068"
-
-[[package]]
 name = "proc-macro2"
-version = "1.0.70"
+version = "1.0.74"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39278fbbf5fb4f646ce651690877f89d1c5811a3d4acb27700c1cb3cdb78fd3b"
+checksum = "2de98502f212cfcea8d0bb305bd0f49d7ebdd75b64ba0a68f937d888f4e0d6db"
 dependencies = [
  "unicode-ident",
 ]
 
 [[package]]
 name = "quote"
-version = "1.0.33"
+version = "1.0.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5267fca4496028628a95160fc423a33e8b2e6af8a5302579e322e4b520293cae"
+checksum = "291ec9ab5efd934aaf503a6466c5d5251535d108ee747472c3977cc5acc868ef"
 dependencies = [
  "proc-macro2",
 ]
@@ -261,22 +259,20 @@ dependencies = [
 
 [[package]]
 name = "ufmt"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31d3c0c63312dfc9d8e5c71114d617018a19f6058674003c0da29ee8d8036cdd"
+checksum = "1a64846ec02b57e9108d6469d98d1648782ad6bb150a95a9baac26900bbeab9d"
 dependencies = [
- "proc-macro-hack",
  "ufmt-macros",
  "ufmt-write",
 ]
 
 [[package]]
 name = "ufmt-macros"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4ab6c92f30c996394a8bd525aef9f03ce01d0d7ac82d81902968057e37dd7d9"
+checksum = "d337d3be617449165cb4633c8dece429afd83f84051024079f97ad32a9663716"
 dependencies = [
- "proc-macro-hack",
  "proc-macro2",
  "quote",
  "syn",
@@ -293,6 +289,12 @@ name = "unicode-ident"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
+
+[[package]]
+name = "unwrap-infallible"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "151ac09978d3c2862c4e39b557f4eceee2cc72150bc4cb4f16abf061b6e381fb"
 
 [[package]]
 name = "vcell"
