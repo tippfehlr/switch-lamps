@@ -208,9 +208,8 @@ impl DrawTarget for Display {
 fn main() -> ! {
     let dp = arduino_hal::Peripherals::take().unwrap();
     let pins = arduino_hal::pins!(dp);
-    let mut serial = arduino_hal::default_serial!(dp, pins, 115200);
+    let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
     let mut adc = arduino_hal::Adc::new(dp.ADC, Default::default());
-    serial.write_str("1").unwrap();
 
     millis_init(dp.TC0);
 
@@ -218,7 +217,6 @@ fn main() -> ! {
 
     let _poti_power = pins.d12.into_output_high();
 
-    //TODO: replace pins with correct ones
     let dir_buttons = pins.a1.into_analog_input(&mut adc);
     let poti_left_x = pins.a0.into_analog_input(&mut adc);
     let poti_left_y = pins.a2.into_analog_input(&mut adc);
