@@ -14,7 +14,11 @@ use arduino_hal::{
     adc,
     clock::MHz16,
     delay_ms,
-    hal::{delay::Delay, Atmega, Spi},
+    hal::{
+        delay::Delay,
+        port::{Dynamic, PB0, PD5, PD6, PD7},
+        Atmega, Spi,
+    },
     port::{
         mode::{Input, Output, PullUp},
         Pin,
@@ -80,16 +84,16 @@ enum MenuState {
     /// wall lamps
     /// id’s 0-3
     Lamp1,
-    /// desk lamps
+    /// table lamps
     /// id’s 4-6
     Lamp2,
-    // /// power outlets
+    // /// power outlets for floor lamps
     // /// id’s 4-5
     // Lamp3,
-    // /// strahler
+    // /// ceiling lamps
     // /// id 9
     // Lamp4,
-    // /// Bastelecke
+    // /// 'possibly more lamps'
     // /// id 10
     // Lamp5,
     // ///
@@ -136,7 +140,17 @@ enum Button {
     RotateLeft,
 }
 
-type Epd = Epd1in54<Spi, Pin<Output>, Pin<Input<PullUp>>, Pin<Output>, Pin<Output>, Delay<MHz16>>;
+type Epd = Epd1in54<
+    Spi,
+    Pin<Output, PD5>,
+    Pin<Input<PullUp>, PD6>,
+    Pin<Output, PD7>,
+    Pin<Output, PB0>,
+    Delay<MHz16>,
+>;
+// the same with dynamic pins; use .downgrade() to convert. Comes with a performance penalty. not tested.
+// type Epd = Epd1in54<Spi, Pin<Output>, Pin<Input<PullUp>>, Pin<Output>, Pin<Output>, Delay<MHz16>>;
+
 enum DisplayError {}
 
 struct Display {
@@ -147,7 +161,7 @@ struct Display {
 
 impl Display {
     fn new(epd: Epd, spi: Spi) -> Self {
-        let delay = Delay::<arduino_hal::clock::MHz16>::new();
+        let delay = Delay::<MHz16>::new();
         Self { epd, spi, delay }
     }
     fn display_frame(&mut self) {
@@ -215,52 +229,52 @@ fn main() -> ! {
 
     unsafe { avr_device::interrupt::enable() };
 
-    let _poti_power = pins.d12.into_output_high();
+    // let _poti_power = pins.d12.into_output_high();
 
     let dir_buttons = pins.a1.into_analog_input(&mut adc);
     let poti_left_x = pins.a0.into_analog_input(&mut adc);
     let poti_left_y = pins.a2.into_analog_input(&mut adc);
     let poti_right_x = pins.a3.into_analog_input(&mut adc);
 
-    // let (mut spi, _) = arduino_hal::Spi::new(
-    //     dp.SPI,
-    //     pins.d13.into_output(),
-    //     pins.d11.into_output(),
-    //     pins.d12.into_pull_up_input(),
-    //     pins.d10.into_output(),
-    //     arduino_hal::spi::Settings::default(),
-    // );
-    // let cs_pin = pins.d5.into_output().downgrade();
-    // let busy_in = pins.d6.into_pull_up_input().downgrade();
-    // let dc = pins.d7.into_output().downgrade();
-    // let rst = pins.d8.into_output().downgrade();
+    let (mut spi, _) = arduino_hal::Spi::new(
+        dp.SPI,
+        pins.d13.into_output(),
+        pins.d11.into_output(),
+        pins.d12.into_pull_up_input(),
+        pins.d10.into_output(),
+        arduino_hal::spi::Settings::default(),
+    );
+    let cs_pin = pins.d5.into_output();
+    let busy_in = pins.d6.into_pull_up_input();
+    let dc = pins.d7.into_output();
+    let rst = pins.d8.into_output();
 
-    // let epd = Epd1in54::new(
-    //     &mut spi,
-    //     cs_pin,
-    //     busy_in,
-    //     dc,
-    //     rst,
-    //     &mut arduino_hal::Delay::new(),
-    // )
-    // .unwrap();
+    let epd = Epd1in54::new(
+        &mut spi,
+        cs_pin,
+        busy_in,
+        dc,
+        rst,
+        &mut Delay::<MHz16>::new(),
+    )
+    .unwrap();
 
-    // let mut display: Display = Display::new(epd, spi);
+    let mut display: Display = Display::new(epd, spi);
 
     let mut button: Button;
-    // let mut last_button: Button = Button::None;
-    // let mut last_button_hold_time: Duration = Duration::ZERO;
+    let mut last_button: Button = Button::None;
+    let mut last_button_hold_time: Duration = Duration::ZERO;
 
-    // let mut menu_state: MenuState = MenuState::Main;
-    // let mut menu_state_timeout: Duration = Duration::ZERO;
+    let mut menu_state: MenuState = MenuState::Main;
+    let mut menu_state_timeout: Duration = Duration::ZERO;
 
     loop {
         button = Button::None;
 
-        // if millis() - menu_state_timeout >= MENU_TIMEOUT {
-        //     menu_state = MenuState::Main;
-        //     update_display(&menu_state, &mut display);
-        // }
+        if millis() - menu_state_timeout >= MENU_TIMEOUT {
+            menu_state = MenuState::Main;
+            update_display(&menu_state, &mut display);
+        }
 
         match dir_buttons.analog_read(&mut adc) {
             500...520 => button = Button::PressBottom,
@@ -313,6 +327,7 @@ fn update_display(menu_state: &MenuState, display: &mut Display) {
         .build();
     match menu_state {
         MenuState::Main => {
+            // display.epd.update_and_display_frame(&mut display.spi, buffer, &mut display.delay);
             Text::with_text_style("ALL", display_middle, character_style, text_style);
             display.display_frame();
         }
