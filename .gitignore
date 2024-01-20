@@ -1,5 +1,4 @@
 /target
-
-*.brd
-*.sch
-*.ods*
+/debug
+**/*.rs.bk
+*.pdb
