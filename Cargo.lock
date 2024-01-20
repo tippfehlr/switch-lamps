@@ -5,6 +5,7 @@ version = 3
 [[package]]
 name = "arduino-hal"
 version = "0.1.0"
+source = "git+https://github.com/tippfehlr/avr-hal?branch=sparkfun-promini-3.3v#792757761fca15dcb76e80d96e2b4281e91d7b5f"
 dependencies = [
  "atmega-hal",
  "avr-device",
@@ -18,6 +19,7 @@ dependencies = [
 [[package]]
 name = "atmega-hal"
 version = "0.1.0"
+source = "git+https://github.com/tippfehlr/avr-hal?branch=sparkfun-promini-3.3v#792757761fca15dcb76e80d96e2b4281e91d7b5f"
 dependencies = [
  "avr-device",
  "avr-hal-generic",
@@ -55,6 +57,7 @@ dependencies = [
 [[package]]
 name = "avr-hal-generic"
 version = "0.1.0"
+source = "git+https://github.com/tippfehlr/avr-hal?branch=sparkfun-promini-3.3v#792757761fca15dcb76e80d96e2b4281e91d7b5f"
 dependencies = [
  "avr-device",
  "cfg-if 0.1.10",
@@ -235,7 +238,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ffc183a10b4478d04cbbbfc96d0873219d962dd5accaff2ffbd4ceb7df837f4"
 
 [[package]]
-name = "schalter-lampen"
+name = "switch-lamps"
 version = "0.1.0"
 dependencies = [
  "arduino-hal",

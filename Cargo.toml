@@ -1,12 +1,12 @@
 [package]
-name = "schalter-lampen"
+name = "switch-lamps"
 version = "0.1.0"
 authors = ["tippfehlr"]
 edition = "2021"
 license = "MIT"
 
 [[bin]]
-name = "schalter-lampen"
+name = "switch-lamps"
 test = false
 bench = false
 
@@ -16,14 +16,19 @@ panic-halt = "0.2.0"
 embedded-graphics = "0.8.1"
 epd-waveshare = { version = "0.5.0", default-features = false }
 
+# [dependencies.epd-waveshare]
+# path = "../epd-waveshare/"
+
 [dependencies.arduino-hal]
 # git = "https://github.com/rahix/avr-hal"
 # rev = "4c9c44c314eb061ee20556ef10d45dea36e75ee4"
-path = "../avr-hal/arduino-hal/"
-features = ["sparkfun-promini-3v"]
+# features = ["arduino-nano"]
+git = "https://github.com/tippfehlr/avr-hal"
+branch = "sparkfun-promini-3.3v"
+features = ["sparkfun-promini-3v3"]
 
 [dependencies.avr-device]
-version = "0.5"
+version = "0.5.3"
 
 # Configure the build for minimal size - AVRs have very little program memory
 [profile.dev]
