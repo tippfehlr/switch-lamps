@@ -1,6 +1,8 @@
 # switch-lamps
 
-## The Goal
+A switch for all my lamps 🛋️
+
+## Goals
 
 - Making it possible to control all lamps from one place
 - Making multiple switches work together (no state stored on the switch unit)
