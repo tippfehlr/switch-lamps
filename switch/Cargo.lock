@@ -5,7 +5,7 @@ version = 3
 [[package]]
 name = "arduino-hal"
 version = "0.1.0"
-source = "git+https://github.com/rahix/avr-hal#38549cc4142881d302374535b3621578ffccaff2"
+source = "git+https://github.com/tippfehlr/avr-hal?rev=792757761fca15dcb76e80d96e2b4281e91d7b5f#792757761fca15dcb76e80d96e2b4281e91d7b5f"
 dependencies = [
  "atmega-hal",
  "avr-device",
@@ -19,7 +19,7 @@ dependencies = [
 [[package]]
 name = "atmega-hal"
 version = "0.1.0"
-source = "git+https://github.com/rahix/avr-hal#38549cc4142881d302374535b3621578ffccaff2"
+source = "git+https://github.com/tippfehlr/avr-hal?rev=792757761fca15dcb76e80d96e2b4281e91d7b5f#792757761fca15dcb76e80d96e2b4281e91d7b5f"
 dependencies = [
  "avr-device",
  "avr-hal-generic",
@@ -57,13 +57,12 @@ dependencies = [
 [[package]]
 name = "avr-hal-generic"
 version = "0.1.0"
-source = "git+https://github.com/rahix/avr-hal#38549cc4142881d302374535b3621578ffccaff2"
+source = "git+https://github.com/tippfehlr/avr-hal?rev=792757761fca15dcb76e80d96e2b4281e91d7b5f#792757761fca15dcb76e80d96e2b4281e91d7b5f"
 dependencies = [
  "avr-device",
  "cfg-if 0.1.10",
  "embedded-hal 0.2.7",
  "embedded-hal 1.0.0",
- "embedded-hal-bus",
  "embedded-storage",
  "nb 1.1.0",
  "paste",
@@ -109,12 +108,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "critical-section"
-version = "1.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7059fff8937831a9ae6f0fe4d658ffabf58f2ca96aa9dec1c889f936f705f216"
-
-[[package]]
 name = "embedded-graphics"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -152,16 +145,6 @@ name = "embedded-hal"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "361a90feb7004eca4019fb28352a9465666b24f840f5c3cddf0ff13920590b89"
-
-[[package]]
-name = "embedded-hal-bus"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57b4e6ede84339ebdb418cd986e6320a34b017cdf99b5cc3efceec6450b06886"
-dependencies = [
- "critical-section",
- "embedded-hal 1.0.0",
-]
 
 [[package]]
 name = "embedded-storage"

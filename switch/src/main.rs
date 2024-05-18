@@ -2,6 +2,14 @@
 #![no_main]
 #![feature(abi_avr_interrupt)]
 
+mod display;
+mod enums;
+mod millis;
+
+use display::Display;
+use enums::{Button, MenuState};
+use millis::{millis, millis_init};
+
 use embedded_graphics::{
     mono_font::{iso_8859_9::FONT_9X15_BOLD, MonoTextStyle},
     pixelcolor::BinaryColor,
@@ -14,206 +22,16 @@ use arduino_hal::{
     adc,
     clock::MHz16,
     delay_ms,
-    hal::{
-        delay::Delay,
-        port::{Dynamic, PB0, PD5, PD6, PD7},
-        Atmega, Spi,
-    },
-    port::{
-        mode::{Input, Output, PullUp},
-        Pin,
-    },
+    hal::{delay::Delay, Atmega},
     usart::UsartOps,
     Usart,
 };
-use core::{cell, time::Duration};
+use core::{any::Any, time::Duration};
 use panic_halt as _;
-use ufmt::{derive::uDebug, uDisplay, uWrite, uwriteln};
+use ufmt::uwriteln;
 
 const BUTTON_HOLD_INTERVAL: Duration = Duration::from_millis(200);
 const MENU_TIMEOUT: Duration = Duration::from_secs(5);
-
-// --------- MILLIS ----------
-
-const PRESCALER: u32 = 64;
-const TIMER_COUNTS: u32 = 250;
-const MILLIS_INCREMENT: u32 = PRESCALER * TIMER_COUNTS / 16000;
-
-static MILLIS_COUNTER: avr_device::interrupt::Mutex<cell::Cell<u32>> =
-    avr_device::interrupt::Mutex::new(cell::Cell::new(0));
-
-fn millis_init(tc0: arduino_hal::pac::TC0) {
-    // Configure the timer for the above interval (in CTC mode)
-    // and enable its interrupt.
-    tc0.tccr0a.write(|w| w.wgm0().ctc()); // timer control register 0a
-    tc0.ocr0a.write(|w| w.bits(TIMER_COUNTS as u8)); // output compare register 0a
-    tc0.tccr0b.write(|w| match PRESCALER {
-        8 => w.cs0().prescale_8(),
-        64 => w.cs0().prescale_64(),
-        256 => w.cs0().prescale_256(),
-        1024 => w.cs0().prescale_1024(),
-        _ => panic!(),
-    }); // timer control register 0b
-    tc0.timsk0.write(|w| w.ocie0a().set_bit()); // timer interrupt mask register 0
-
-    // Reset the global millisecond counter
-    avr_device::interrupt::free(|cs| {
-        MILLIS_COUNTER.borrow(cs).set(0);
-    });
-}
-
-#[allow(non_snake_case)]
-#[avr_device::interrupt(atmega328p)]
-fn TIMER0_COMPA() {
-    avr_device::interrupt::free(|cs| {
-        let counter_cell = MILLIS_COUNTER.borrow(cs);
-        let counter = counter_cell.get();
-        counter_cell.set(counter + MILLIS_INCREMENT);
-    })
-}
-
-fn millis() -> Duration {
-    avr_device::interrupt::free(|cs| Duration::from_millis(MILLIS_COUNTER.borrow(cs).get().into()))
-}
-
-// ----------------
-
-#[derive(Clone, PartialEq, Eq)]
-enum MenuState {
-    Main,
-    /// wall lamps
-    /// id’s 0-3
-    Lamp1,
-    /// table lamps
-    /// id’s 4-6
-    Lamp2,
-    // /// power outlets for floor lamps
-    // /// id’s 4-5
-    // Lamp3,
-    // /// ceiling lamps
-    // /// id 9
-    // Lamp4,
-    // /// 'possibly more lamps'
-    // /// id 10
-    // Lamp5,
-    // ///
-    // Lamp6,
-    // Lamp7,
-    // Lamp8,
-    // …
-}
-
-#[derive(Clone, PartialEq, Eq, uDebug)]
-enum Button {
-    None,
-
-    /// increase blue
-    SlideUp,
-
-    /// decrease blue
-    SlideDown,
-
-    /// move focus point left
-    SlideLeft,
-
-    /// move focus point right
-    SlideRight,
-
-    /// if selected turn wall lamps on/off
-    /// else select wall lamps
-    PressTop,
-
-    /// if selected turn desk lamps on/off
-    /// else select desk lamps
-    PressBottom,
-
-    /// select next lamp
-    PressRight,
-
-    /// select previous lamp
-    PressLeft,
-
-    /// increase brightness
-    RotateRight,
-
-    /// decrease brightness
-    RotateLeft,
-}
-
-type Epd = Epd1in54<
-    Spi,
-    Pin<Output, PD5>,
-    Pin<Input<PullUp>, PD6>,
-    Pin<Output, PD7>,
-    Pin<Output, PB0>,
-    Delay<MHz16>,
->;
-// the same with dynamic pins; use .downgrade() to convert. Comes with a performance penalty. not tested.
-// type Epd = Epd1in54<Spi, Pin<Output>, Pin<Input<PullUp>>, Pin<Output>, Pin<Output>, Delay<MHz16>>;
-
-enum DisplayError {}
-
-struct Display {
-    epd: Epd,
-    spi: Spi,
-    delay: Delay<MHz16>,
-}
-
-impl Display {
-    fn new(epd: Epd, spi: Spi) -> Self {
-        let delay = Delay::<MHz16>::new();
-        Self { epd, spi, delay }
-    }
-    fn display_frame(&mut self) {
-        self.epd
-            .display_frame(&mut self.spi, &mut self.delay)
-            .unwrap();
-    }
-}
-
-impl OriginDimensions for Display {
-    fn size(&self) -> Size {
-        Size {
-            width: 200,
-            height: 200,
-        }
-    }
-}
-
-fn to_color(color: BinaryColor) -> u8 {
-    color.is_on() as u8 * 255
-}
-
-impl DrawTarget for Display {
-    type Color = BinaryColor;
-    type Error = DisplayError;
-    fn draw_iter<I>(&mut self, draw: I) -> Result<(), DisplayError>
-    where
-        I: IntoIterator<Item = Pixel<Self::Color>>,
-    {
-        for pixel in draw {
-            self.epd
-                .update_partial_frame(
-                    &mut self.spi,
-                    &[to_color(pixel.1)],
-                    pixel.0.x.try_into().unwrap(),
-                    pixel.0.y.try_into().unwrap(),
-                    1,
-                    1,
-                )
-                .unwrap();
-        }
-        Ok(())
-    }
-
-    fn clear(&mut self, color: Self::Color) -> Result<(), Self::Error> {
-        self.epd.set_background_color(to_color(color).into());
-        self.epd
-            .clear_frame(&mut self.spi, &mut self.delay)
-            .unwrap();
-        Ok(())
-    }
-}
 
 // #[link_section = ".rodata"]
 // static LAMP1: [u8; 200 * 200 / 8] = [];
@@ -229,37 +47,49 @@ fn main() -> ! {
 
     unsafe { avr_device::interrupt::enable() };
 
-    // let _poti_power = pins.d12.into_output_high();
+    // this is the base voltage for the poti
+    // when disabled, potis will not work
+    let mut _poti_power = pins.d12.into_output_high();
 
     let dir_buttons = pins.a1.into_analog_input(&mut adc);
     let poti_left_x = pins.a0.into_analog_input(&mut adc);
     let poti_left_y = pins.a2.into_analog_input(&mut adc);
     let poti_right_x = pins.a3.into_analog_input(&mut adc);
 
-    let (mut spi, _) = arduino_hal::Spi::new(
-        dp.SPI,
-        pins.d13.into_output(),
-        pins.d11.into_output(),
-        pins.d12.into_pull_up_input(),
-        pins.d10.into_output(),
-        arduino_hal::spi::Settings::default(),
-    );
-    let cs_pin = pins.d5.into_output();
-    let busy_in = pins.d6.into_pull_up_input();
-    let dc = pins.d7.into_output();
-    let rst = pins.d8.into_output();
+    // TODO: correct pins
 
-    let epd = Epd1in54::new(
-        &mut spi,
-        cs_pin,
-        busy_in,
-        dc,
-        rst,
-        &mut Delay::<MHz16>::new(),
-    )
-    .unwrap();
+    // let (mut spi, _) = arduino_hal::Spi::new(
+    //     dp.SPI,
+    //     pins.d13.into_output(),
+    //     pins.d11.into_output(),
+    //     pins.d4.into_pull_up_input(),
+    //     pins.d10.into_output(),
+    //     arduino_hal::spi::Settings::default(),
+    // );
+    // let cs_pin = pins.d5.into_output();
+    // let busy_in = pins.d6.into_pull_up_input();
+    // let dc = pins.d7.into_output();
+    // let rst = pins.d8.into_output();
 
-    let mut display: Display = Display::new(epd, spi);
+    // let pre_epd = Epd1in54::new(
+    //     &mut spi,
+    //     cs_pin,
+    //     busy_in,
+    //     dc,
+    //     rst,
+    //     &mut Delay::<MHz16>::new(),
+    // );
+
+    // uwriteln!(&mut serial, "{:#?}", pre_epd.is_err()).unwrap();
+
+    // if pre_epd.is_err() {
+    //     serial.write_byte(b'F');
+    //     loop {}
+    // }
+
+    // let epd = pre_epd.unwrap();
+
+    // let mut display: Display = Display::new(epd, spi);
 
     let mut button: Button;
     let mut last_button: Button = Button::None;
@@ -273,7 +103,7 @@ fn main() -> ! {
 
         if millis() - menu_state_timeout >= MENU_TIMEOUT {
             menu_state = MenuState::Main;
-            update_display(&menu_state, &mut display);
+            // update_display(&menu_state, &mut display);
         }
 
         match dir_buttons.analog_read(&mut adc) {
@@ -299,18 +129,64 @@ fn main() -> ! {
             (0...200, 0.., 900.., 0..) => button = Button::SlideLeft,
             _ => {}
         };
-        uwriteln!(
-            &mut serial,
-            "dir_buttons: {:?}, poti_left_x: {:?}, poti_left_y: {:?}, poti_right_x: {:?}, poti_right_y: {:?}, hand: {:?}, button: {:?}",
-            dir_buttons.analog_read(&mut adc),
-            poti_left_x.analog_read(&mut adc),
-            poti_left_y.analog_read(&mut adc),
-            poti_right_x.analog_read(&mut adc),
-            adc.read_blocking(&adc::channel::ADC7),
-            adc.read_blocking(&adc::channel::ADC6),
-            button
-        )
-        .unwrap();
+
+        if button != Button::None
+            && (button != last_button || millis() - last_button_hold_time >= BUTTON_HOLD_INTERVAL)
+        {
+            last_button = button.clone();
+            last_button_hold_time = millis();
+
+            match button {
+                Button::RotateRight => send_data(&mut serial, get_mask(&menu_state), 10, 0, 0),
+                Button::RotateLeft => send_data(&mut serial, get_mask(&menu_state), -10, 0, 0),
+                Button::SlideUp => send_data(&mut serial, get_mask(&menu_state), 0, 10, 0),
+                Button::SlideDown => send_data(&mut serial, get_mask(&menu_state), 0, -10, 0),
+                Button::SlideLeft => send_data(&mut serial, get_mask(&menu_state), 0, 0, -10),
+                Button::SlideRight => send_data(&mut serial, get_mask(&menu_state), 0, 0, 10),
+                Button::PressTop => match &menu_state {
+                    MenuState::Lamp1 => send_data(&mut serial, get_mask(&menu_state), -127, 0, 0),
+                    _ => {
+                        menu_state = MenuState::Lamp1;
+                        menu_state_timeout = millis();
+
+                        // update_display(&menu_state, &mut display);
+                    }
+                },
+                Button::PressBottom => match menu_state {
+                    MenuState::Lamp2 => send_data(&mut serial, get_mask(&menu_state), -127, 0, 0),
+                    _ => {
+                        menu_state = MenuState::Lamp2;
+                        menu_state_timeout = millis();
+
+                        // update_display(&menu_state, &mut display);
+                    }
+                },
+                Button::PressLeft => {
+                    increment_menu_state(&mut menu_state);
+
+                    // update_display(&menu_state, &mut display);
+                }
+                Button::PressRight => {
+                    decrement_menu_state(&mut menu_state);
+
+                    // update_display(&menu_state, &mut display);
+                }
+                Button::None => unreachable!(),
+            }
+        }
+
+        // uwriteln!(
+        //     &mut serial,
+        //     "dir_buttons: {:?}, poti_left_x: {:?}, poti_left_y: {:?}, poti_right_x: {:?}, poti_right_y: {:?}, hand: {:?}, button: {:?}",
+        //     dir_buttons.analog_read(&mut adc),
+        //     poti_left_x.analog_read(&mut adc),
+        //     poti_left_y.analog_read(&mut adc),
+        //     poti_right_x.analog_read(&mut adc),
+        //     adc.read_blocking(&adc::channel::ADC7),
+        //     adc.read_blocking(&adc::channel::ADC6),
+        //     button
+        // )
+        // .unwrap();
         delay_ms(100);
     }
 }
@@ -380,11 +256,10 @@ fn send_data<U, P1, P2>(
 ) where
     U: UsartOps<Atmega, P1, P2>,
 {
-    serial.write_byte(0);
-    serial.write_byte(0);
-    serial.write_byte(mask as u8);
     serial.write_byte((mask >> 8) as u8);
+    serial.write_byte(mask as u8);
     serial.write_byte((brightness + 127) as u8);
     serial.write_byte((gamma + 127) as u8);
     serial.write_byte((position + 127) as u8);
+    serial.write_byte(b'\n');
 }
