@@ -21,10 +21,8 @@ epd-waveshare = { version = "0.5.0", default-features = false }
 
 [dependencies.arduino-hal]
 # there is no release with sparkfun-promini-3v3 yet
-git = "https://github.com/tippfehlr/avr-hal"
-rev = "792757761fca15dcb76e80d96e2b4281e91d7b5f"
-# git = "https://github.com/rahix/avr-hal"
-# rev = "38549cc4142881d302374535b3621578ffccaff2"
+git = "https://github.com/rahix/avr-hal"
+rev = "38549cc4142881d302374535b3621578ffccaff2"
 features = ["sparkfun-promini-3v3"]
 
 [dependencies.avr-device]
