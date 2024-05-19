@@ -135,6 +135,7 @@ fn main() -> ! {
         {
             last_button = button.clone();
             last_button_hold_time = millis();
+            menu_state_timeout = millis();
 
             match button {
                 Button::RotateRight => send_data(&mut serial, get_mask(&menu_state), 10, 0, 0),
@@ -256,6 +257,7 @@ fn send_data<U, P1, P2>(
 ) where
     U: UsartOps<Atmega, P1, P2>,
 {
+    serial.write_byte(0x00);
     serial.write_byte((mask >> 8) as u8);
     serial.write_byte(mask as u8);
     serial.write_byte((brightness + 127) as u8);
