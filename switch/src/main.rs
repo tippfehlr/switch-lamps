@@ -19,19 +19,22 @@ use embedded_graphics::{
 use epd_waveshare::{epd1in54::Epd1in54, prelude::*};
 
 use arduino_hal::{
-    adc,
-    clock::MHz16,
-    delay_ms,
+    adc, delay_ms,
     hal::{delay::Delay, Atmega},
     usart::UsartOps,
     Usart,
 };
-use core::{any::Any, time::Duration};
+use core::time::Duration;
 use panic_halt as _;
 use ufmt::uwriteln;
 
-const BUTTON_HOLD_INTERVAL: Duration = Duration::from_millis(200);
+const CHANGE_PER_SECOND: i8 = 127;
+const BUTTON_HOLD_FREQUENCY: i8 = 25;
+const BUTTON_HOLD_INTERVAL: Duration = Duration::from_millis(1000 / BUTTON_HOLD_FREQUENCY as u64);
 const MENU_TIMEOUT: Duration = Duration::from_secs(5);
+
+// must not evaluate to 0
+const CHANGE_PER_INTERVAL: i8 = CHANGE_PER_SECOND / BUTTON_HOLD_FREQUENCY;
 
 // #[link_section = ".rodata"]
 // static LAMP1: [u8; 200 * 200 / 8] = [];
@@ -42,7 +45,6 @@ fn main() -> ! {
     let pins = arduino_hal::pins!(dp);
     let mut serial = arduino_hal::default_serial!(dp, pins, 115200);
     let mut adc = arduino_hal::Adc::new(dp.ADC, Default::default());
-
     millis_init(dp.TC0);
 
     unsafe { avr_device::interrupt::enable() };
@@ -55,6 +57,15 @@ fn main() -> ! {
     let poti_left_x = pins.a0.into_analog_input(&mut adc);
     let poti_left_y = pins.a2.into_analog_input(&mut adc);
     let poti_right_x = pins.a3.into_analog_input(&mut adc);
+
+    // write 6x 0x00 to signal a restart
+    serial.write_byte(0x00);
+    serial.write_byte(0x00);
+    serial.write_byte(0x00);
+    serial.write_byte(0x00);
+    serial.write_byte(0x00);
+    serial.write_byte(0x00);
+    serial.write_byte(b'\n');
 
     // TODO: correct pins
 
@@ -138,12 +149,48 @@ fn main() -> ! {
             menu_state_timeout = millis();
 
             match button {
-                Button::RotateRight => send_data(&mut serial, get_mask(&menu_state), 10, 0, 0),
-                Button::RotateLeft => send_data(&mut serial, get_mask(&menu_state), -10, 0, 0),
-                Button::SlideUp => send_data(&mut serial, get_mask(&menu_state), 0, 10, 0),
-                Button::SlideDown => send_data(&mut serial, get_mask(&menu_state), 0, -10, 0),
-                Button::SlideLeft => send_data(&mut serial, get_mask(&menu_state), 0, 0, -10),
-                Button::SlideRight => send_data(&mut serial, get_mask(&menu_state), 0, 0, 10),
+                Button::RotateRight => send_data(
+                    &mut serial,
+                    get_mask(&menu_state),
+                    CHANGE_PER_INTERVAL,
+                    0,
+                    0,
+                ),
+                Button::RotateLeft => send_data(
+                    &mut serial,
+                    get_mask(&menu_state),
+                    -CHANGE_PER_INTERVAL,
+                    0,
+                    0,
+                ),
+                Button::SlideUp => send_data(
+                    &mut serial,
+                    get_mask(&menu_state),
+                    0,
+                    CHANGE_PER_INTERVAL,
+                    0,
+                ),
+                Button::SlideDown => send_data(
+                    &mut serial,
+                    get_mask(&menu_state),
+                    0,
+                    -CHANGE_PER_INTERVAL,
+                    0,
+                ),
+                Button::SlideLeft => send_data(
+                    &mut serial,
+                    get_mask(&menu_state),
+                    0,
+                    0,
+                    -CHANGE_PER_INTERVAL,
+                ),
+                Button::SlideRight => send_data(
+                    &mut serial,
+                    get_mask(&menu_state),
+                    0,
+                    0,
+                    CHANGE_PER_INTERVAL,
+                ),
                 Button::PressTop => match &menu_state {
                     MenuState::Lamp1 => send_data(&mut serial, get_mask(&menu_state), -127, 0, 0),
                     _ => {
@@ -175,7 +222,6 @@ fn main() -> ! {
                 Button::None => unreachable!(),
             }
         }
-
         // uwriteln!(
         //     &mut serial,
         //     "dir_buttons: {:?}, poti_left_x: {:?}, poti_left_y: {:?}, poti_right_x: {:?}, poti_right_y: {:?}, hand: {:?}, button: {:?}",
@@ -188,7 +234,7 @@ fn main() -> ! {
         //     button
         // )
         // .unwrap();
-        delay_ms(100);
+        // delay_ms(1000);
     }
 }
 
@@ -244,6 +290,7 @@ fn get_mask(menu_state: &MenuState) -> u16 {
 }
 
 /// send data to lamps
+/// * `serial`: serial interface
 /// * `mask`: 16 bit mask
 /// * `brightness`: -127 to 127 (relative)
 /// * `gamma`: -127 to 127 (red < blue, relative)
@@ -260,8 +307,9 @@ fn send_data<U, P1, P2>(
     serial.write_byte(0x00);
     serial.write_byte((mask >> 8) as u8);
     serial.write_byte(mask as u8);
-    serial.write_byte((brightness + 127) as u8);
-    serial.write_byte((gamma + 127) as u8);
-    serial.write_byte((position + 127) as u8);
+    serial.write_byte(brightness as u8);
+    serial.write_byte(gamma as u8);
+    serial.write_byte(position as u8);
     serial.write_byte(b'\n');
+    serial.flush();
 }
