@@ -1,9 +1,11 @@
 use core::cell;
 use core::time::Duration;
 
+use arduino_hal::clock::Clock;
+
 pub const PRESCALER: u32 = 64;
 pub const TIMER_COUNTS: u32 = 250;
-pub const MILLIS_INCREMENT: u32 = PRESCALER * TIMER_COUNTS / 16000;
+pub const MILLIS_INCREMENT: u32 = PRESCALER * TIMER_COUNTS * 1000 / arduino_hal::DefaultClock::FREQ;
 
 pub static MILLIS_COUNTER: avr_device::interrupt::Mutex<cell::Cell<u32>> =
     avr_device::interrupt::Mutex::new(cell::Cell::new(0));
