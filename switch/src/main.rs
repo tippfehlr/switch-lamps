@@ -59,12 +59,9 @@ fn main() -> ! {
     let poti_right_x = pins.a3.into_analog_input(&mut adc);
 
     // write 6x 0x00 to signal a restart
-    serial.write_byte(0x00);
-    serial.write_byte(0x00);
-    serial.write_byte(0x00);
-    serial.write_byte(0x00);
-    serial.write_byte(0x00);
-    serial.write_byte(0x00);
+    for _ in 0..6 {
+        serial.write_byte(0x00);
+    }
     serial.write_byte(b'\n');
 
     // TODO: correct pins
