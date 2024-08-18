@@ -10,7 +10,7 @@ pub const MILLIS_INCREMENT: u32 = PRESCALER * TIMER_COUNTS * 1000 / arduino_hal:
 pub static MILLIS_COUNTER: avr_device::interrupt::Mutex<cell::Cell<u32>> =
     avr_device::interrupt::Mutex::new(cell::Cell::new(0));
 
-pub fn millis_init(tc0: arduino_hal::pac::TC0) {
+pub fn millis_init(tc0: &arduino_hal::pac::TC0) {
     // Configure the timer for the above interval (in CTC mode)
     // and enable its interrupt.
     tc0.tccr0a.write(|w| w.wgm0().ctc()); // timer control register 0a

@@ -5,6 +5,7 @@
 mod display;
 mod enums;
 mod millis;
+mod sleep;
 
 use display::Display;
 use enums::{Button, MenuState};
@@ -26,9 +27,10 @@ use arduino_hal::{
 };
 use core::time::Duration;
 use panic_halt as _;
+use sleep::{configure_int0, set_sleep_mode};
 use ufmt::uwriteln;
 
-const CHANGE_PER_SECOND: i8 = 127;
+const CHANGE_PER_SECOND: i8 = 64;
 const BUTTON_HOLD_FREQUENCY: i8 = 25;
 const BUTTON_HOLD_INTERVAL: Duration = Duration::from_millis(1000 / BUTTON_HOLD_FREQUENCY as u64);
 const MENU_TIMEOUT: Duration = Duration::from_secs(5);
@@ -45,11 +47,14 @@ fn main() -> ! {
     let pins = arduino_hal::pins!(dp);
     let mut serial = arduino_hal::default_serial!(dp, pins, 115200);
     let mut adc = arduino_hal::Adc::new(dp.ADC, Default::default());
-    millis_init(dp.TC0);
+    millis_init(&dp.TC0);
+
+    set_sleep_mode(&dp.CPU.smcr);
+    configure_int0(&dp.EXINT.eicra);
 
     unsafe { avr_device::interrupt::enable() };
 
-    // this is the base voltage for the poti
+    // this is the base voltage for the potis
     // when disabled, potis will not work
     let mut _poti_power = pins.d12.into_output_high();
 
@@ -57,6 +62,11 @@ fn main() -> ! {
     let poti_left_x = pins.a0.into_analog_input(&mut adc);
     let poti_left_y = pins.a2.into_analog_input(&mut adc);
     let poti_right_x = pins.a3.into_analog_input(&mut adc);
+    // poti_right_y is read with
+    // adc.read_blocking(&adc::channel::ADC7)
+
+    // proximity is somehow broken in hardware
+    let _proximity = pins.d2.into_pull_up_input();
 
     // write 6x 0x00 to signal a restart
     for _ in 0..6 {
@@ -107,12 +117,22 @@ fn main() -> ! {
     let mut menu_state_timeout: Duration = Duration::ZERO;
 
     loop {
+        // // proximity test
+        //
+        // if _proximity.is_high() {
+        //     serial.write_byte(255);
+        // } else {
+        //     serial.write_byte(0);
+        // }
+        // delay_ms(100);
+        // continue;
+
         button = Button::None;
 
-        if millis() - menu_state_timeout >= MENU_TIMEOUT {
-            menu_state = MenuState::Main;
-            // update_display(&menu_state, &mut display);
-        }
+        // if millis() - menu_state_timeout >= MENU_TIMEOUT {
+        //     menu_state = MenuState::Main;
+        //     // update_display(&menu_state, &mut display);
+        // }
 
         match dir_buttons.analog_read(&mut adc) {
             500...520 => button = Button::PressBottom,
@@ -188,31 +208,39 @@ fn main() -> ! {
                     0,
                     CHANGE_PER_INTERVAL,
                 ),
-                Button::PressTop => match &menu_state {
-                    MenuState::Lamp1 => send_data(&mut serial, get_mask(&menu_state), -127, 0, 0),
-                    _ => {
-                        menu_state = MenuState::Lamp1;
-                        menu_state_timeout = millis();
-
-                        // update_display(&menu_state, &mut display);
-                    }
-                },
-                Button::PressBottom => match menu_state {
-                    MenuState::Lamp2 => send_data(&mut serial, get_mask(&menu_state), -127, 0, 0),
-                    _ => {
-                        menu_state = MenuState::Lamp2;
-                        menu_state_timeout = millis();
-
-                        // update_display(&menu_state, &mut display);
-                    }
-                },
+                Button::PressTop => {
+                    // match &menu_state {
+                    //     MenuState::Lamp1 => {
+                    //         send_data(&mut serial, get_mask(&menu_state), -127, 0, 0)
+                    //     }
+                    //     _ => {
+                    //         menu_state = MenuState::Lamp1;
+                    //         menu_state_timeout = millis();
+                    //
+                    //         // update_display(&menu_state, &mut display);
+                    //     }
+                    // }
+                }
+                Button::PressBottom => {
+                    // match menu_state {
+                    //     MenuState::Lamp2 => {
+                    //         send_data(&mut serial, get_mask(&menu_state), -127, 0, 0)
+                    //     }
+                    //     _ => {
+                    //         menu_state = MenuState::Lamp2;
+                    //         menu_state_timeout = millis();
+                    //
+                    //         // update_display(&menu_state, &mut display);
+                    //     }
+                    // }
+                }
                 Button::PressLeft => {
-                    increment_menu_state(&mut menu_state);
+                    // increment_menu_state(&mut menu_state);
 
                     // update_display(&menu_state, &mut display);
                 }
                 Button::PressRight => {
-                    decrement_menu_state(&mut menu_state);
+                    // decrement_menu_state(&mut menu_state);
 
                     // update_display(&menu_state, &mut display);
                 }

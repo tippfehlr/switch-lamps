@@ -15,6 +15,7 @@ ufmt = "0.2.0"
 panic-halt = "0.2.0"
 embedded-graphics = "0.8.1"
 epd-waveshare = { version = "0.5.0", default-features = false }
+avr-device = { version = "0.5.4", features = ["atmega328p"] }
 
 # [dependencies.epd-waveshare]
 # path = "../epd-waveshare/"
@@ -24,9 +25,6 @@ epd-waveshare = { version = "0.5.0", default-features = false }
 git = "https://github.com/rahix/avr-hal"
 rev = "38549cc4142881d302374535b3621578ffccaff2"
 features = ["sparkfun-promini-3v3"]
-
-[dependencies.avr-device]
-version = "0.5.4"
 
 # Configure the build for minimal size - AVRs have very little program memory
 [profile.dev]
